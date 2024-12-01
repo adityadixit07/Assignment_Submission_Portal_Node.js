@@ -1,13 +1,14 @@
 import express from "express";
 import UserController from "../contollers/UserController.js";
 import AdminController from "../contollers/AdminController.js";
-import { verifyToken, isUser, isAdmin } from "../middleware/Authenticate.js";
+import { verifyToken } from "../utils/Verify.js";
+import { isUser } from "../middleware/Authenticate.js";
 const router = express.Router();
 
 // user
 router.post("/register", UserController.register);
 router.post("/login", UserController.login);
-router.get("/admins", UserController.getAllAdmins);
+router.get("/admins", verifyToken,isUser("user"), UserController.getAllAdmins);
 router.post("/upload", UserController.uploadAssignment);
 
 // admin

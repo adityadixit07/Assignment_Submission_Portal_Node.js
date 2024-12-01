@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Admin from "../models/Admin.js";
 import Assignment from "../models/Assignment.js";
+import jwt from "jsonwebtoken";
 
 const AdminController = {
   // ccreate a new admin
@@ -12,14 +13,31 @@ const AdminController = {
     if (adminExist) {
       return res.status(400).json({ message: "Admin already exist" });
     }
+
     const admin = new Admin({
       name,
       email,
       password,
     });
-
+    const token = jwt.sign(
+      { id: admin._id, role: admin.role },
+      process.env.JWT_SECRET_KEY,
+      {
+        expiresIn: "1d",
+      }
+    );
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
     await admin.save();
-    res.json(admin);
+    res.status(201).json({
+      message: "Admin created successfully",
+      admin: { id: admin._id, name: admin.name, email: admin.email },
+      token,
+    });
   },
   loginAdmin: async (req, res) => {
     try {
@@ -34,14 +52,30 @@ const AdminController = {
       if (!admin) {
         return res.status(404).json({ message: "Admin not found" });
       }
-      // check if the password is correct
+
       const isMatch = await admin.matchPassword(password);
       if (!isMatch) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
+
+      const token = jwt.sign(
+        { id: admin._id, role: admin.role },
+        process.env.JWT_SECRET_KEY,
+        {
+          expiresIn: "1d",
+        }
+      );
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 24 * 60 * 60 * 1000,
+      });
+
       res.status(200).json({
         message: "Admin logged in",
         admin: { id: admin._id, name: admin.name, email: admin.email },
+        token,
       });
     } catch (error) {
       res.status(500).json({ message: error.message });

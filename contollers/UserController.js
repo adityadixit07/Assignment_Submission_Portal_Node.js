@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import Assignment from "../models/Assignment.js";
 import Admin from "../models/Admin.js";
 import dotenv from "dotenv";
+import validator from "validator";
 dotenv.config();
 
 const UserController = {
@@ -36,14 +37,17 @@ const UserController = {
       const user = await User.create({ name, email, password });
       await user.save();
       const token = jwt.sign(
+        { id: user._id, role: user.role },
+        process.env.JWT_SECRET_KEY,
         {
-          id: user._id,
-        },
-        process.env.JWT_SECRET_KEY
+          expiresIn: "1d",
+        }
       );
       res.cookie("token", token, {
         httpOnly: true,
-        sameSite: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 24 * 60 * 60 * 1000,
       });
 
       return res.status(201).json({
@@ -65,21 +69,23 @@ const UserController = {
       if (!isUserExist) {
         return res.status(400).json({ message: "Not registered yet!" });
       }
-      const errors = {
-        email: "",
-        password: "",
-      };
+      const errors = {};
+
       if (!email) {
         errors.email = "Email is required";
+      } else if (!validator.isEmail(email)) {
+        errors.email = "Invalid email format";
       }
+
       if (!password) {
         errors.password = "Password is required";
       }
-      if (errors.email || errors.password) {
+
+      if (Object.keys(errors).length > 0) {
         return res.status(400).json({ errors });
       }
-      const user = await User.findOne({ email });
 
+      const user = await User.findOne({ email: email.toLowerCase() });
       if (!user) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
@@ -87,14 +93,29 @@ const UserController = {
       if (!isMatch) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY);
+      const token = jwt.sign(
+        { id: user._id, role: user.role },
+        process.env.JWT_SECRET_KEY,
+        {
+          expiresIn: "1d",
+        }
+      );
+
       res.cookie("token", token, {
         httpOnly: true,
-        sameSite: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 24 * 60 * 60 * 1000,
       });
-      return res
-        .status(200)
-        .json({ message: "Logged in successfully", token: token });
+      return res.status(200).json({
+        message: "Logged in successfully",
+        token: token,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+        },
+      });
     } catch (error) {
       return res.status(500).json({ message: error.message });
     }
@@ -120,16 +141,53 @@ const UserController = {
     try {
       const { title, description, adminsTagged } = req.body;
       const user = req.user;
+      const errors = {};
+
+      if (!title || title.trim() === "") {
+        errors.title = "Title is required";
+      }
+
+      if (!description || description.trim() === "") {
+        errors.description = "Description is required";
+      }
+
+      if (
+        !adminsTagged ||
+        !Array.isArray(adminsTagged) ||
+        adminsTagged.length === 0
+      ) {
+        errors.adminsTagged = "At least one admin must be tagged";
+      }
+
+      // Check for validation errors
+      if (Object.keys(errors).length > 0) {
+        return res.status(400).json({ errors });
+      }
+      const validAdmins = await Admin.find({ _id: { $in: adminsTagged } });
+      if (validAdmins.length !== adminsTagged.length) {
+        return res
+          .status(400)
+          .json({ message: "One or more tagged admins are invalid" });
+      }
+
+      // Create assignment
       const assignment = await Assignment.create({
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         user: user._id,
         adminsTagged,
+        status: "Pending",
       });
       await assignment.save();
-      return res
-        .status(201)
-        .json({ message: "Assignment uploaded successfully" });
+
+      return res.status(201).json({
+        message: "Assignment uploaded successfully",
+        assignment: {
+          id: assignment._id,
+          title: assignment.title,
+          description: assignment.description,
+        },
+      });
     } catch (error) {
       return res.status(500).json({ message: error.message });
     }

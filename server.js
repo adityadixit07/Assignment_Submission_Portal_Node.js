@@ -1,12 +1,21 @@
-import express from "express";
+import express, { urlencoded } from "express";
 import dotenv from "dotenv";
+import cookieParser from "cookie-parser";
 import connectDB from "./config/Connection.js";
 import router from "./routes/ServiceRoute.js";
 dotenv.config();
 
 const app = express();
 connectDB();
-app.use(express.json())
+app.use(
+  express.json(
+    {
+      extended: true,
+    },
+    urlencoded({ extended: true })
+  )
+);
+app.use(cookieParser());
 app.use("/api/v1", router);
 
 const PORT = process.env.PORT || 5000;
