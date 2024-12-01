@@ -2,12 +2,20 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Assignment from "../models/Assignment.js";
 import Admin from "../models/Admin.js";
+import dotenv from "dotenv";
+dotenv.config();
 
 const UserController = {
   // register feature
   register: async (req, res, next) => {
     try {
       const { name, email, password } = req.body;
+      const isUserExist = await User.findOne({
+        email: email,
+      });
+      if (isUserExist) {
+        return res.status(400).json({ message: "User already exist" });
+      }
       const errors = {
         name: "",
         email: "",
@@ -27,7 +35,12 @@ const UserController = {
       }
       const user = await User.create({ name, email, password });
       await user.save();
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const token = jwt.sign(
+        {
+          id: user._id,
+        },
+        process.env.JWT_SECRET_KEY
+      );
       res.cookie("token", token, {
         httpOnly: true,
         sameSite: true,
@@ -35,9 +48,10 @@ const UserController = {
 
       return res.status(201).json({
         message: `${user.name} registered successfully`,
+        token: token,
       });
     } catch (error) {
-      return res.staus(500).json({ message: error.message });
+      return res.status(500).json({ message: error.message });
     }
   },
 
@@ -45,6 +59,12 @@ const UserController = {
   login: async (req, res, next) => {
     try {
       const { email, password } = req.body;
+      const isUserExist = await User.findOne({
+        email: email,
+      });
+      if (!isUserExist) {
+        return res.status(400).json({ message: "Not registered yet!" });
+      }
       const errors = {
         email: "",
         password: "",
@@ -59,6 +79,7 @@ const UserController = {
         return res.status(400).json({ errors });
       }
       const user = await User.findOne({ email });
+
       if (!user) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
@@ -66,7 +87,7 @@ const UserController = {
       if (!isMatch) {
         return res.status(400).json({ message: "Invalid credentials" });
       }
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY);
       res.cookie("token", token, {
         httpOnly: true,
         sameSite: true,
@@ -82,8 +103,9 @@ const UserController = {
   //   get all admins
   getAllAdmins: async (req, res, next) => {
     try {
-      const admins = await Admin.find();
+      const admins = await Admin.find().select("-password -email");
       return res.status(200).json({
+        message: "All admins fetched successfully",
         allAdmins: admins,
       });
     } catch (error) {
