@@ -15,3 +15,5 @@ router.post("/upload", authenticate, UserController.uploadAssignment);
 router.post("/admin/regsiter", AdminController.createAdmin);
 router.post("/admin/login", AdminController.loginAdmin);
 router.get("/assignments", AdminController.getTaggedAssignments);
+router.patch("/assignment/:id/reject", AdminController.rejectAssignment);
+router.patch("/assignment/:id/accept", AdminController.approveAssignment);
