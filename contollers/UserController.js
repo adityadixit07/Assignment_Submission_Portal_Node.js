@@ -184,7 +184,7 @@ const UserController = {
       const assignment = await Assignment.create({
         title: title.trim(),
         description: description.trim(),
-        user: user._id,
+        user: user.id,
         adminsTagged,
         status: "Pending",
       });
