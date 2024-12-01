@@ -10,7 +10,7 @@ export const verifyToken = (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized: Invalid token" });
     }
 
-    req.user = { id: decoded.id,role:decoded.role };
+    req.user = { id: decoded.id, role: decoded.role };
     next();
   });
 };

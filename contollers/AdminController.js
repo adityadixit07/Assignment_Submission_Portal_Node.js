@@ -71,6 +71,7 @@ const AdminController = {
         sameSite: "strict",
         maxAge: 24 * 60 * 60 * 1000,
       });
+      req.user = { id: admin._id, role: admin.role };
 
       res.status(200).json({
         message: "Admin logged in",
@@ -85,62 +86,107 @@ const AdminController = {
   // get the tagged assignments
   getTaggedAssignments: async (req, res) => {
     try {
-      // get all tagged assignment to the particuar tagged admin
-      // we have admin
-      const admin = await Admin.findById(req.user._id);
-      if (!admin) {
-        return res.status(404).json({ message: "Admin not found" });
+      // Ensure req.user exists and has an id field (admin is authenticated)
+      const adminId = req.user?.id;
+      if (!adminId) {
+        return res.status(401).json({ message: "Admin not authenticated" });
       }
 
+      // Find assignments that are tagged to the current admin (adminId)
       const assignments = await Assignment.find({
-        adminsTagged: { $in: [admin._id] },
+        adminsTagged: { $in: [new mongoose.Types.ObjectId(adminId)] },
       });
+
+      if (assignments.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "No assignment is tagged to you" });
+      }
+
       return res.status(200).json({
         message: "All tagged assignments fetched successfully",
         assignments,
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: error.message });
     }
   },
 
-  // rejcet particular assignment that is tagged to partcular admin
+  // reject particular assignment that is tagged to partcular admin
   rejectAssignment: async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params; // The assignment ID passed in the URL
+      const adminId = req.user?.id; // Ensure that req.user exists and has the id field
+
+      if (!adminId) {
+        return res.status(401).json({ message: "Admin not authenticated" });
+      }
+
+      // Find the assignment by its ID
       const assignment = await Assignment.findById(id);
       if (!assignment) {
         return res.status(404).json({ message: "Assignment not found" });
       }
-      // now we can rejcet the asssingment and save it
+
+      if (!assignment.adminsTagged.includes(adminId)) {
+        return res.status(403).json({
+          message: "You are not authorized to reject this assignment",
+        });
+      }
+
+      // Update the assignment status to "Rejected"
       assignment.status = "Rejected";
       await assignment.save();
+
       return res.status(200).json({
         message: "Assignment rejected",
         assignment,
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: error.message });
     }
   },
   // accept the assignment that is tagged to the particular admin
   approveAssignment: async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = req.params; // The assignment ID passed in the URL
+
+      const adminId = req.user.id;
+      // Find the assignment by its ID
       const assignment = await Assignment.findById(id);
       if (!assignment) {
         return res.status(404).json({ message: "Assignment not found" });
       }
-      // now we can accept the assignment and save it
+
+      // Check if the logged-in admin is the one tagged in the assignment
+      if (!assignment.adminsTagged.includes(adminId)) {
+        return res.status(403).json({
+          message: "You are not authorized to accept this assignment",
+        });
+      }
+
+      // Update the assignment status to "Accepted"
       assignment.status = "Accepted";
       await assignment.save();
+
       return res.status(200).json({
         message: "Assignment accepted",
         assignment,
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: error.message });
     }
+  },
+
+  // logout admin
+  logoutAdmin: async (req, res) => {
+    if (!req.cookies.token) {
+      return res
+        .status(401)
+        .json({ message: "Unauthorized: No token provided" });
+    }
+    res.clearCookie("token");
+    return res.status(200).json({ message: "Logged out successfully" });
   },
 };
 
