@@ -7,7 +7,7 @@ import validator from "validator";
 dotenv.config();
 
 const UserController = {
-  // register feature
+  // registeration featur
   register: async (req, res, next) => {
     try {
       const { name, email, password } = req.body;
